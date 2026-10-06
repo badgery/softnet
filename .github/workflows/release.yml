@@ -12,7 +12,7 @@ permissions:
 jobs:
   release:
     name: Release
-    if: github.event_name == 'push' && github.ref_type == 'tag'
+    if: github.repository == 'openai/softnet' && github.event_name == 'push' && github.ref_type == 'tag'
     runs-on: macos-26
     environment: publish
     timeout-minutes: 60
