@@ -2,9 +2,15 @@ name: Badgery Release
 
 # Badgery's builds of this fork: arm64 only, signed with Badgery's Developer ID
 # and notarized, rather than ad-hoc signed
+#
+# A tag builds, signs and publishes a release. A push to the default branch only
+# builds, to save the cache: a tag's run can restore caches from the default
+# branch but not from earlier tags
 
 on:
   push:
+    branches:
+      - badgery
     tags:
       - "*-badgery.*"
 
@@ -21,6 +27,7 @@ jobs:
       contents: write
     env:
       VERSION: ${{ github.ref_name }}
+      RELEASE: ${{ startsWith(github.ref, 'refs/tags/') }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -31,7 +38,22 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
       - name: Install release target
-        run: rustup target add aarch64-apple-darwin
+        id: rust
+        run: |
+          rustup target add aarch64-apple-darwin
+          echo "version=$(rustc --version | tr -c 'a-zA-Z0-9.\n' '-')" >> "$GITHUB_OUTPUT"
+      - name: Cache crates and build products
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: softnet-arm64-${{ steps.rust.outputs.version }}-${{ hashFiles('Cargo.lock') }}-${{ github.sha }}
+          restore-keys: |
+            softnet-arm64-${{ steps.rust.outputs.version }}-${{ hashFiles('Cargo.lock') }}-
+            softnet-arm64-${{ steps.rust.outputs.version }}-
       - name: Build
         run: |
           SOFTNET_VERSION="$VERSION-$(git rev-parse --short HEAD)" \
@@ -39,6 +61,7 @@ jobs:
           mkdir -p dist
           cp target/aarch64-apple-darwin/release/softnet dist/softnet
       - name: Import signing certificate
+        if: env.RELEASE == 'true'
         env:
           MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
           MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
@@ -62,6 +85,7 @@ jobs:
           security list-keychain -d user -s "$RUNNER_TEMP/build.keychain" $(security list-keychains -d user | tr -d '"')
           rm "$RUNNER_TEMP/certificate.p12"
       - name: Sign and notarize
+        if: env.RELEASE == 'true'
         env:
           MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
           MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
@@ -93,6 +117,7 @@ jobs:
           shasum -a 256 softnet.tar.gz dist/softnet | tee SHA256SUMS
           codesign --display --requirements - dist/softnet 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Publish
+        if: env.RELEASE == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -101,7 +126,7 @@ jobs:
             --title "$VERSION" \
             --notes "Badgery build of Softnet $VERSION: arm64, signed and notarized by Badgery, adds TARGET:PORT[-PORT] rules."
       - name: Remove signing material
-        if: always()
+        if: always() && env.RELEASE == 'true'
         run: |
           security delete-keychain "$RUNNER_TEMP/build.keychain" || true
           rm -f "$RUNNER_TEMP/notary.p8" "$RUNNER_TEMP/certificate.p12"
