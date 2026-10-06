@@ -1,0 +1,107 @@
+name: Badgery Release
+
+# Badgery's builds of this fork: arm64 only, signed with Badgery's Developer ID
+# and notarized, rather than ad-hoc signed
+
+on:
+  push:
+    tags:
+      - "*-badgery.*"
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    if: github.repository == 'badgery/softnet'
+    name: Release
+    runs-on: macos-26
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+      - name: Install release target
+        run: rustup target add aarch64-apple-darwin
+      - name: Build
+        run: |
+          SOFTNET_VERSION="$VERSION-$(git rev-parse --short HEAD)" \
+            cargo build --release --locked --target aarch64-apple-darwin
+          mkdir -p dist
+          cp target/aarch64-apple-darwin/release/softnet dist/softnet
+      - name: Import signing certificate
+        env:
+          MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
+          MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+        run: |
+          KEYCHAIN_PASSWORD=$(openssl rand -hex 32)
+          echo "$MACOS_SIGN_P12" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          echo "$MACOS_NOTARY_KEY" | base64 --decode > "$RUNNER_TEMP/notary.p8"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/build.keychain"
+          security set-keychain-settings -lut 21600 "$RUNNER_TEMP/build.keychain"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/build.keychain"
+          security import "$RUNNER_TEMP/certificate.p12" \
+            -k "$RUNNER_TEMP/build.keychain" \
+            -P "$MACOS_SIGN_PASSWORD" \
+            -T /usr/bin/codesign
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "$KEYCHAIN_PASSWORD" \
+            "$RUNNER_TEMP/build.keychain"
+          security list-keychain -d user -s "$RUNNER_TEMP/build.keychain" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/certificate.p12"
+      - name: Sign and notarize
+        env:
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+        run: |
+          IDENTITY=$(security find-identity -v -p codesigning "$RUNNER_TEMP/build.keychain" \
+            | sed -n 's/.*\([0-9A-F]\{40\}\) "Developer ID Application: .*/\1/p' | head -n 1)
+          codesign \
+            --force \
+            --verbose \
+            --sign "$IDENTITY" \
+            --identifier softnet \
+            --timestamp \
+            --options runtime \
+            --keychain "$RUNNER_TEMP/build.keychain" \
+            dist/softnet
+          codesign --verify --strict --verbose=2 dist/softnet
+          dist/softnet --version
+
+          # A bare executable cannot be stapled; Gatekeeper finds the ticket online
+          ditto -c -k dist/softnet "$RUNNER_TEMP/softnet-notarization.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/softnet-notarization.zip" \
+            --key "$RUNNER_TEMP/notary.p8" \
+            --key-id "$MACOS_NOTARY_KEY_ID" \
+            --issuer "$MACOS_NOTARY_ISSUER_ID" \
+            --wait \
+            --timeout 20m
+
+          tar -C dist -czf softnet.tar.gz softnet
+          shasum -a 256 softnet.tar.gz dist/softnet | tee SHA256SUMS
+          codesign --display --requirements - dist/softnet 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$VERSION" softnet.tar.gz SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$VERSION" \
+            --notes "Badgery build of Softnet $VERSION: arm64, signed and notarized by Badgery, adds TARGET:PORT[-PORT] rules."
+      - name: Remove signing material
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/build.keychain" || true
+          rm -f "$RUNNER_TEMP/notary.p8" "$RUNNER_TEMP/certificate.p12"
