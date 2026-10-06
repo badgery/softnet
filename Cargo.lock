@@ -598,7 +598,7 @@ version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "10d60334b3b2e7c9d91ef8150abfb6fa4c1c39ebbcf4a81c2e346aad939fee3e"
 dependencies = [
- "thiserror 2.0.19",
+ "thiserror",
 ]
 
 [[package]]
@@ -650,7 +650,7 @@ dependencies = [
  "hickory-proto",
  "ipnet",
  "rand 0.10.1",
- "thiserror 2.0.19",
+ "thiserror",
 ]
 
 [[package]]
@@ -985,7 +985,7 @@ dependencies = [
  "jni",
  "once_cell",
  "rand 0.10.1",
- "thiserror 2.0.19",
+ "thiserror",
  "tinyvec",
  "tracing",
  "url",
@@ -1342,7 +1342,7 @@ dependencies = [
  "jni-sys",
  "log",
  "simd_cesu8",
- "thiserror 2.0.19",
+ "thiserror",
  "walkdir",
  "windows-link",
 ]
@@ -1398,7 +1398,7 @@ dependencies = [
  "http 1.1.0",
  "serde",
  "serde_json",
- "thiserror 2.0.19",
+ "thiserror",
 ]
 
 [[package]]
@@ -1560,7 +1560,7 @@ checksum = "4ddcb8865ad3d9950f22f42ffa0ef0aecbfbf191867b3122413602b0a360b2a6"
 dependencies = [
  "cc",
  "libc",
- "thiserror 2.0.19",
+ "thiserror",
  "winapi",
 ]
 
@@ -2302,7 +2302,7 @@ dependencies = [
  "rand 0.9.4",
  "serde",
  "serde_json",
- "thiserror 2.0.19",
+ "thiserror",
  "time",
  "url",
  "uuid",
@@ -2528,16 +2528,6 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
 name = "syn"
-version = "1.0.109"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72b64191b275b66ffe2469e8af2c1cfe3bafa67b529ead792a6d0160888b4237"
-dependencies = [
- "proc-macro2",
- "unicode-ident",
-]
-
-[[package]]
-name = "syn"
 version = "2.0.117"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e665b8803e7b1d2a727f4023456bbbbe74da67099c585258af0ad9c5013b9b99"
@@ -2614,31 +2604,11 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "1.0.64"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d50af8abc119fb8bb6dbabcfa89656f46f84aa0ac7688088608076ad2b459a84"
-dependencies = [
- "thiserror-impl 1.0.64",
-]
-
-[[package]]
-name = "thiserror"
 version = "2.0.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09a43598840e33d5b0331f38c5e30d13bb11c11210a4b58f0d9b18a5a5eefcd9"
 dependencies = [
- "thiserror-impl 2.0.19",
-]
-
-[[package]]
-name = "thiserror-impl"
-version = "1.0.64"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08904e7672f5eb876eaaf87e0ce17857500934f4981c4a0ab2b4aa98baac7fc3"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.117",
+ "thiserror-impl",
 ]
 
 [[package]]
@@ -2999,7 +2969,7 @@ dependencies = [
  "objc2",
  "objc2-core-foundation",
  "serial_test",
- "thiserror 2.0.19",
+ "thiserror",
  "uuid",
  "vmnet-derive",
 ]
